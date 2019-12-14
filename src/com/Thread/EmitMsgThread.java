@@ -1,7 +1,7 @@
 package com.Thread;
 
 import com.Gateway;
-import com.Message.TokenMsg;
+import com.Message.ServerMsg;
 
 public class EmitMsgThread extends Thread{
     Gateway gate;
@@ -20,9 +20,8 @@ public class EmitMsgThread extends Thread{
             int target= (int)(gate.MaxNumOfGateway*r);
             if(gate.AdjMatrix[target]==true){
                 //System.out.print("Send to "+String.valueOf(target)+"\n");
-                TokenMsg TM=new TokenMsg((int)(200*Math.random()));
-                TM.ID=gate.ID;
-                //gate.emitSingleMessage(target,TM);
+                ServerMsg SM;
+                //gate.emitSingleMessage(target,SM);
                 try{
                     Thread.sleep(2000);
                 }

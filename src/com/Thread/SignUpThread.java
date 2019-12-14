@@ -2,7 +2,9 @@ package com.Thread;
 
 import com.Gateway;
 import com.Message.RegisterMsg;
+import com.Token;
 
+import java.awt.*;
 import java.io.ObjectOutputStream;
 import java.util.Date;
 import java.util.HashMap;
@@ -13,14 +15,16 @@ enum Response {
 }
 public class SignUpThread extends Thread {
     Gateway gate;
+    private int ID;
     private static long MaxOfRandomNum = 100000000;
     private static long SignUpTimeOut = 8000;/**每个循环等待AcceptMsg的最大时间*/
     private long random;
-    public Date time;
     public HashMap<Integer,Response> Mark;
+    private boolean[] TopoTable;
     public SignUpThread(Gateway gate){
         this.gate=gate;
-        this.time=new Date();
+        this.ID=gate.ID;
+        this.TopoTable=new boolean[gate.MaxNumOfGateway];
     }
 
     public long Getrandom(){
@@ -34,9 +38,12 @@ public class SignUpThread extends Thread {
         return (long)(MaxOfRandomNum*Math.random());
     }
 
-    public synchronized void ReceiveMsg(int ID,boolean OK,boolean Register) {
+    public synchronized void ReceiveAcceptMsg(int ID,boolean OK,boolean Register,boolean[]TopoTable) {
         if (OK == false) Mark.put(ID, Response.Reject);
-        else if (OK == true && Register == true) Mark.put(ID, Response.Accept);
+        else if (OK == true && Register == true) {
+            Mark.put(ID, Response.Accept);
+            this.TopoTable=TopoTable.clone();
+        }
         else Mark.put(ID,Response.AcceptFromInMap);
         Set keys=Mark.keySet();
         for(Object key : keys){
@@ -56,14 +63,14 @@ public class SignUpThread extends Thread {
             long loop_start=new Date().getTime();
             Mark = new HashMap<>();
             int count_Ack = 0;
-            time = new Date();
             random=GetRandom();
             for (int i = 0; i < gate.AdjMatrix.length; i++) {
                 if (gate.AdjMatrix[i]&&i!=gate.ID) {
-                    RegisterMsg RM = new RegisterMsg(gate.ID, time,random);
+                    RegisterMsg RM = new RegisterMsg(gate.ID, random);
                     gate.emitSingleMessage(i, RM);
                     Mark.put(i, Response.Wait);
-                    System.out.print("Send RegisterMsg to Gateway "+String.valueOf(i)+"\n");
+                    String str=new String("Send RegisterMsg to Gateway " + String.valueOf(i) + " with random "+String.valueOf(random)+"\n");
+                    System.out.print(str);
                 }
             }
             Set keys = Mark.keySet();
@@ -77,8 +84,12 @@ public class SignUpThread extends Thread {
                         loop_start=new Date().getTime();
                         if (count_Ack == Mark.size()) {
                             synchronized (gate) {
-                                gate.register = true;/**进入临界区改变gate状态为已进入拓扑*/
-                                System.out.print("成功进入拓扑\n");
+                                TopoTable[ID] = true;
+                                int count = 0;
+                                for (int i = 0; i < TopoTable.length; i++) {
+                                    if (TopoTable[i]) count++;
+                                }
+                                gate.InitGateway(count == 1, TopoTable, count);
                                 return;
                             }
                         }
