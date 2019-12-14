@@ -1,10 +1,7 @@
 package com.Thread;
 
 import com.Gateway;
-import com.Message.AcceptMsg;
-import com.Message.Message;
-import com.Message.RegisterMsg;
-import com.Message.TokenMsg;
+import com.Message.*;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -16,14 +13,10 @@ public class ClientThread extends Thread {
     private Socket cSocket;
     private Gateway gate;
 
-    public ClientThread(int id, Gateway gate) {
-        this.ID=id;
+    public ClientThread(Gateway gate,Socket socket) {
+        this.ID = gate.ID;
         this.gate = gate;
-    }
-
-    public ClientThread(Gateway gate,Socket socket){
-        this.gate=gate;
-        this.cSocket=socket;
+        this.cSocket = socket;
     }
 
     public void run() {
@@ -40,19 +33,20 @@ public class ClientThread extends Thread {
                 // Synchronizing mainObj so that multiple threads access mainObj in a synchronized way
                 synchronized (gate) {
                     if (msg instanceof TokenMsg) {
-                        gate.token.Receive(((TokenMsg) msg).TokenNum);
-                        System.out.print("Received " + String.valueOf(((TokenMsg) msg).TokenNum) + " from Gateway " + String.valueOf(msg.ID) + " and current number is" + gate.token.curNum() + "\n");
+                        gate.ReceiveTokenMsg(((TokenMsg) msg).TokenNum,msg.ID);
                     }
-                    if(msg instanceof AcceptMsg) {
-                        if (gate.SUT.Getrandom() == ((AcceptMsg) msg).random)
-                            if (gate.SUT != null) {
-                                gate.ReceiveAcceptMsg(msg.ID, ((AcceptMsg) msg).OK, ((AcceptMsg) msg).register);
-                                System.out.print("Receive AcceptMsg from Gateway " + String.valueOf(msg.ID) + " : " + String.valueOf(((AcceptMsg) msg).OK) + " random : "+String.valueOf(((AcceptMsg) msg).random)+" \n");
-                            }
-                        //else System.out.print("Receive AcceptMsg from Gateway " + String.valueOf(msg.ID) + " : " + String.valueOf(((AcceptMsg) msg).OK) + " but SignUpThread doesn't know\n");
+                    else if(msg instanceof AcceptMsg) {
+                        if (gate.SUT.Getrandom() == ((AcceptMsg) msg).random) {
+                            gate.ReceiveAcceptMsg(msg.ID, ((AcceptMsg) msg).OK, ((AcceptMsg) msg).register,((AcceptMsg) msg).TopoTable);
+                            String str = new String("Receive AcceptMsg from Gateway " + String.valueOf(msg.ID) + " : " + String.valueOf(((AcceptMsg) msg).OK) + " random : " + String.valueOf(((AcceptMsg) msg).random) + "\n");
+                            System.out.print(str);
+                        }
+                        else{
+                            /**随机数不对则丢弃*/
+                        }
                     }
-                    if(msg instanceof RegisterMsg){
-                        System.out.print("Receive RegisterMsg from Gateway "+String.valueOf(msg.ID)+" with a register time : "+((RegisterMsg) msg).time.toString()+"\n");
+                    else if(msg instanceof RegisterMsg){
+                        System.out.print("Receive RegisterMsg from Gateway "+String.valueOf(msg.ID)+"\n");
                         synchronized (gate){
                             if(gate.register==true||gate.SUT==null){
                                 AcceptMsg AM=new AcceptMsg(gate,true,((RegisterMsg) msg).random);
@@ -60,8 +54,7 @@ public class ClientThread extends Thread {
                             }
                             else{
                                 /**处理多个节点共同进行注册*/
-                                if(gate.SUT!=null) System.out.print("Our Register Time : "+gate.GetRegisterTime().toString()+" and Received Register Time : "+((RegisterMsg) msg).time.toString()+"\n");
-                                if(((RegisterMsg) msg).time.before(gate.GetRegisterTime())){
+                                if(msg.ID<ID){/**ID小者优先*/
                                     AcceptMsg AM=new AcceptMsg(gate,true,((RegisterMsg) msg).random);
                                     gate.emitSingleMessage(msg.ID,AM);
                                 }
@@ -71,6 +64,17 @@ public class ClientThread extends Thread {
                                 }
                             }
                         }
+                    }
+                    else if(msg instanceof ChangeTopoMsg){
+                        gate.ChangeTopo(msg.ID,((ChangeTopoMsg) msg).AddOrRemove);
+                    }
+                    else if(msg instanceof ServerMsg) {
+                        if (gate.ST != null) {
+                            gate.ST.ReceiveServerMsg(((ServerMsg) msg).SearchForSpace, ((ServerMsg) msg).name);
+                        }
+                    }
+                    else if(msg instanceof SnapMsg){
+                        gate.ST.ReceiveSnapMsg(msg.ID,((SnapMsg) msg).Snap);
                     }
                 }
             } catch (IOException | ClassNotFoundException e) {

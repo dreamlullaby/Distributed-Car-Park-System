@@ -6,23 +6,28 @@ public class Token {
     Token(int num){
         currentNum=num;
     }
-    public boolean Release(){
+    public synchronized boolean Release(){
         currentNum++;
         return true;
     }
-    public boolean Occupy(){
+    public synchronized boolean Occupy(){
         if(currentNum>0){
             currentNum--;
             return true;
         }
         return false;
     }
-    public int Transmit(){
+    public synchronized int Transmit(){
         int num=currentNum/2;
         currentNum-=num;
         return num;
     }
-    public boolean Receive(int num){
+    public synchronized int SingleTokenTransmit(){
+        int num=currentNum;
+        currentNum=0;
+        return num;
+    }
+    public synchronized boolean Receive(int num){
         try {
             this.currentNum += num;
             return true;
@@ -32,7 +37,7 @@ public class Token {
         }
         return false;
     }
-    public int curNum(){
+    public synchronized int curNum(){
         return currentNum;
     }
 }
